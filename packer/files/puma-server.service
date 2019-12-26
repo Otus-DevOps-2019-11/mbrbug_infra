@@ -1,0 +1,12 @@
+[Unit]
+Description=Puma Server
+After=network.target
+Requires=network.target
+
+[Service]
+ExecStart=/usr/local/bin/puma -C /var/lib/gems/2.3.0/gems/puma-3.10.0/lib/puma.rb --dir /home/appuser/reddit
+TimeoutSec=15
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
