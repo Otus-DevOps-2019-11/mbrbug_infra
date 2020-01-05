@@ -187,3 +187,120 @@ gcloud compute instances create reddit-app \
 > --tags puma-server \
 > --restart-on-failure
  ```
+
+ ### №8 Практика IaC с использованием Terraform.
+
+ ##### Цели занятия
+ Изучение packer. Команды, синтаксис, конфигурационные файлы.
+ Скачиваем Terraform, распаковываем в путь из окружения PATH
+ Создаем main.tf c провайдером google и ресурсами вида:
+ ```
+ resource "google_compute_instance" "app" {
+ name = "reddit-app"
+ machine_type = "g1-small"
+ zone = "europe-west1-b"
+ boot_disk {
+ initialize_params {
+ image = "reddit-base"
+ }
+ }
+ network_interface {
+ network = "default"
+ access_config {}
+ }
+ }
+ ```
+###### работа с ключами SSH
+ ```
+ resource "google_compute_instance" "app" {
+ ...
+ metadata = {
+ # путь до публичного ключа
+ ssh-keys = "appuser:${file("~/.ssh/appuser.pub")}"
+ }
+ ...
+ }
+ ```
+###### работа с портами
+ ```
+ resource "google_compute_firewall" "firewall_puma" {
+ name = "allow-puma-default"
+ # Название сети, в которой действует правило
+ network = "default"
+ # Какой доступ разрешить
+ allow {
+ protocol = "tcp"
+ ports = ["9292"]
+ }
+ # Каким адресам разрешаем доступ
+ source_ranges = ["0.0.0.0/0"]
+ # Правило применимо для инстансов с перечисленными тэгами
+ target_tags = ["reddit-app"]
+ }
+
+ ```
+###### работа с провиженерами
+ ```
+ provisioner "file" {
+ source = "files/puma.service"
+ destination = "/tmp/puma.service"
+ }
+ ```
+###### работа с variables
+```
+variable project {
+description = "Project ID"
+}
+variable region {
+description = "Region"
+# Значение по умолчанию
+default = "europe-west1"
+}
+```
+```
+provider "google" {
+version = "2.15.0"
+project = var.project
+region = var.region
+}
+```
+##### Задание со *
+Добавление ключей для нескольких пользователей через sshkeys
+при добавлении ключа через веб-интерфейс ключ не виден в Terraform
+##### Задание с **
+Создание балансировщика и использование и использование параметра count
+
+```
+resource "google_compute_target_pool" "reddit-app-target-pool" {
+  name = "reddit-app-target-pool"
+
+  instances = google_compute_instance.app[*].self_link
+
+  health_checks = [
+    google_compute_http_health_check.reddit-http-hc.name,
+  ]
+}
+
+resource "google_compute_http_health_check" "reddit-http-hc" {
+  name                = "reddit-http-hc"
+  timeout_sec         = 1
+  check_interval_sec  = 1
+  healthy_threshold   = 4
+  unhealthy_threshold = 5
+  port                = 9292
+
+}
+
+resource "google_compute_forwarding_rule" "reddit-fr" {
+  name                  = "reddit-fr"
+  region                = var.region
+  load_balancing_scheme = "EXTERNAL"
+  target                = google_compute_target_pool.reddit-app-target-pool.self_link
+  port_range            = 9292
+}
+```
+```
+resource "google_compute_instance" "app" {
+  count        = var.count_inst
+  name         = "reddit-app${count.index + 1}"
+```
