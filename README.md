@@ -2,6 +2,8 @@
 mbrbug Infra repository
 
 ### №5 Знакомство с облачной инфраструктурой и облачными сервисами.
+<details>
+<summary>Знакомство с облачной инфраструктурой и облачными сервисам</summary>
 
 #### Создание виртуальных машин в GCP
 
@@ -37,8 +39,11 @@ RequestTTY force
 
 bastion_IP = 104.198.142.243
 someinternalhost_IP = 10.128.0.3
+</details>
 
 ### №6 Основные сервисы Google Cloud Platform (GCP).
+<details>
+<summary>Основные сервисы Google Cloud Platform (GCP).</summary>
 
 Цели занятия
 Способы управления ресурсами в GCP.
@@ -95,8 +100,11 @@ puma -d'
 #### firewall rule
 
 `gcloud compute firewall-rules create default-puma-server --allow tcp:9292 --target-tags 'puma-server' --source-ranges 0.0.0.0/0`
+</details>
 
 ### №7 Модели управления инфраструктурой Packer.
+<details>
+  <summary>Модели управления инфраструктурой Packer</summary>
 
 ##### Цели занятия
 Изучение packer. Команды, синтаксис, конфигурационные файлы.
@@ -187,11 +195,14 @@ gcloud compute instances create reddit-app \
 > --tags puma-server \
 > --restart-on-failure
  ```
+</details>
 
- ### №8 Практика IaC с использованием Terraform.
+### №8 Практика IaC с использованием Terraform.
+<details>
+  <summary>Практика IaC с использованием Terraform</summary>
 
- ##### Цели занятия
- Изучение packer. Команды, синтаксис, конфигурационные файлы.
+##### Цели занятия
+ Изучение Terraform. Команды, синтаксис, конфигурационные файлы.
  Скачиваем Terraform, распаковываем в путь из окружения PATH
  Создаем main.tf c провайдером google и ресурсами вида:
  ```
@@ -304,3 +315,94 @@ resource "google_compute_instance" "app" {
   count        = var.count_inst
   name         = "reddit-app${count.index + 1}"
 ```
+</details>
+
+### №9 Принципы организации инфраструктурного кода и работа над инфраструктурой в команде на примере Terraform.
+
+##### Цели занятия
+Изучение Terraform. Команды, синтаксис, конфигурационные файлы.
+
+если ресурс уже существует, его можно импортировать в terraform
+команда `terraform import google_compute_firewall.firewall_ssh default-allow-ssh`
+
+ресурс ip-адреса
+```resource "google_compute_address" "app_ip" {
+name = "reddit-app-ip"
+}
+```
+Зависимости ресурсов, явные и неявные
+`depends_on`
+
+Модули terraform (отдельная папка, файлы main, variables, outputs)
+ссылка на модуль в main.tf
+```
+module "app" {
+source = "./modules/app"
+public_key_path = "${var.public_key_path}"
+zone = "${var.zone}"
+app_disk_image = "${var.app_disk_image}"
+}
+```
+ссылка на выходную переменную модуля
+```
+output "app_external_ip" {
+value = "${module.app.app_external_ip}"
+}
+```
+параметризация модулей, input переменные
+terraform/vpc/main.tf
+`source_ranges = "${var.source_ranges}"`
+terraform/vpc/variables.tf
+```
+variable source_ranges {
+description = "Allowed IP addresses"
+default = ["0.0.0.0/0"]
+}
+```
+terraform/main.tf
+```
+module "vpc" {
+source = "modules/vpc"
+source_ranges = ["80.250.215.124/32"]
+}
+```
+##### Реестр модулей HashiCorp
+```
+module "storage-bucket" {
+  source  = "SweetOps/storage-bucket/google"
+  version = "0.3.0"
+  name        = "mbrbug-bucket-reddit-app"
+  location    = "europe-west1"
+}
+```
+##### Хранение стайт файла в бекенде
+```
+terraform {
+  backend "gcs" {
+    bucket  = "mbrbug-bucket-reddit-app"
+    prefix  = "prod"
+  }
+}
+```
+##### if statement in terraform
+ задаем переменную boolean в variables.tf модуля
+ ```
+ variable app_provisioner {
+  description = "turn on off puma provisioner"
+ }
+ ```
+ задаем значение переменной в main.tf root модуля
+ ```
+ module "app" {
+   ...
+   app_provisioner = true
+ }
+ ```
+ в main.tf модуля app задаем два идентичных ресурса с разными именами и различием в проверке переменной
+ ```
+ count = var.app_provisioner ? 0 : 1
+ ```
+ или
+ ```
+count = var.app_provisioner ? 0 : 1
+ ```
