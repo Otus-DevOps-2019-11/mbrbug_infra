@@ -318,6 +318,8 @@ resource "google_compute_instance" "app" {
 </details>
 
 ### №9 Принципы организации инфраструктурного кода и работа над инфраструктурой в команде на примере Terraform.
+<details>
+  <summary>Практика IaC с использованием Terraform</summary>
 
 ##### Цели занятия
 Изучение Terraform. Команды, синтаксис, конфигурационные файлы.
@@ -406,3 +408,60 @@ terraform {
  ```
 count = var.app_provisioner ? 0 : 1
  ```
+</details>
+
+### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
+
+##### Установка Ansible
+`pip install ansible>=2.4`
+
+##### файл inventory
+``` [app] appserver ansible_host=104.199.105.96 [db] dbserver ansible_host=130.211.108.138 ``` модуль ping `ansible appserver -i ./inventory -m ping`
+
+##### Параметры ansible.cfg
+``` [defaults] inventory = ./inventory.json remote_user = appuser private_key_file = ~/.ssh/appuser host_key_checking = False retry_files_enabled = False ```
+
+##### файл inventory.yml (YAML)
+``` app:
+  hosts:
+    appserver:
+      ansible_host: 104.199.105.96 db:
+  hosts:
+    dbserver:
+      ansible_host: 130.211.108.138 ``` модули command, shell, ping, systemd, service, git
+
+##### playbook /clone.ym
+``` --- - name: Clone
+  hosts: app
+  tasks:
+    - name: Clone repo
+      git:
+        repo: https://github.com/express42/reddit.git
+        dest: /home/appuser/reddit ```
+
+##### Задание со ⭐
+Из terraform берем ip инстансов app и db из outputs и через переменную подставляем в шаблон ``` {
+    "apps": {
+        "hosts": [$app_ip],
+    },
+    "dbs": [$db_ip],
+}
+```
+##### файл inventory.json
+``` {
+  "app": {
+    "hosts": {
+      "appserver": {
+        "ansible_host": "130.211.108.138"
+      }
+    }
+  },
+  "db": {
+    "hosts": {
+      "dbserver": {
+        "ansible_host": "104.199.105.96"
+      }
+    }
+  }
+}
+```
