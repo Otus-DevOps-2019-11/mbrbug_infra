@@ -4,3 +4,4 @@
 *.tfvars
 .terraform/
 *.bak
+*.retry

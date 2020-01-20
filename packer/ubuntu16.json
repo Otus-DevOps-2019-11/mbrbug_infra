@@ -14,7 +14,7 @@
             "ssh_username": "appuser",
             "machine_type": "{{ user `machine_type` }}",
             "disk_size": "10",
-            "disk_type": "pd-standart",
+            "disk_type": "pd-standard",
             "image_description": "reddit template image for otus devops",
             "network": "default",
             "tags": "networktagstest"

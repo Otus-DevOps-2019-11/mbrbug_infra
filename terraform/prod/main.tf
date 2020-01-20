@@ -19,7 +19,7 @@ module "app" {
   machine_type     = "${var.machine_type}"
   private_key_path = "${var.private_key_path}"
   database_url     = "${module.db.db_external_ip}"
-  app_provisioner  = true
+  app_provisioner  = false
 }
 
 module "db" {

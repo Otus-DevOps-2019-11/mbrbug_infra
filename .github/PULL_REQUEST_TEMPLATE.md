@@ -1,16 +1,16 @@
 # Выполнено ДЗ №9
 
- - [x] Основное ДЗ №10
+ - [x] Основное ДЗ №11
  - [x] Задание со *
 
 ## В процессе сделано:
- - Установлен Ansible
- - создан файл inventory
- - настройка Ansible файлом ansible.cfg
- - создание файла inventory.yml
- - создание плейбука clone.yml (ansible-playbook clone.yml)
- - создание inventory.json (динамический инвентори)
- - создание скрипта для динамического инвентори
+ - изучен плейбук ансибле
+ - Модули template, copy, git, apt, systemd
+ - handlers (notify: reload puma)
+ - tags (--tags db-tag)
+ - переменные
+ - Провижининг ansible в Packer ("type": "ansible")
+ - использован скрипт для динамического инвентори
 
 ## Как запустить проект:
  - запустить terraform apply (stage окружение)

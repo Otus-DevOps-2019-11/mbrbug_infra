@@ -2,15 +2,23 @@
   "app": {
     "hosts": {
       "appserver": {
-        "ansible_host": "130.211.108.138"
+        "ansible_host": [
+             "104.199.105.96"
+         ]
       }
+    },
+    "vars": {
+         "db_int_ip": "123"
     }
   },
   "db": {
     "hosts": {
       "dbserver": {
-        "ansible_host": "104.199.105.96"
-      }
+        "ansible_host": "34.77.69.153"
+         }
+    },
+    "vars": {
+        "db2_int_ip": "321"
     }
   }
 }

@@ -1,199 +1,229 @@
 # mbrbug_infra
 mbrbug Infra repository
 
-### №5 Знакомство с облачной инфраструктурой и облачными сервисами.
+### №11 Деплой и управление конфигурацией с Ansible
+
+ansible/templates, файлы \*.j2
+variable вида  `{{ mongo_port | default('27017') }}`
+
+а в плейбуке
+```
+   vars:
+    mongo_bind_ip: 0.0.0.0
+```
+пробный запуск `ansible-playbook reddit_app.yml --check --limit app --tags app-tag`
+
+и ограничение действия к указанным группам хостов и/или тегам
+
+##### handlers
+```
+- name: Configure hosts & deploy application
+hosts: all
+vars:
+mongo_bind_ip: 0.0.0.0
+tasks:
+- name: Change mongo config file
+become: true
+template:
+src: templates/mongod.conf.j2
+dest: /etc/mongod.conf
+mode: 0644
+tags: db-tag
+notify: restart mongod
+handlers: # <-- Добавим блок handlers и задачу
+- name: restart mongod
+become: true
+service: name=mongod state=restarted
+```
+
+###### Задание со *
+К прошлому динамическому инвентори добавился внутренный адрес сервера db.
+Он записывается в качестве переменной db_int_ip
+```
+
+    "app":  {
+      "hosts": [
+          "$app_ip"
+      ],
+        "vars": {
+            "db_ip_int": "$db_ip_int"
+        }
+    },
+
+```
+```
+---
+- name: Configure App
+  hosts: app
+  become: true
+  vars:
+   db_host: "{{ db_ip_int }}"
+```
+скрипт указан в ansible.cfg в качестве inventory файла
+```
+inventory = ./dyn_inv.sh
+```
+
+##### Провижининг ansible в Packer
+```
+"provisioners": [
+{
+"type": "ansible",
+"playbook_file": "ansible/packer_app.yml"
+}
+]
+```
+
+### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
+
 <details>
-<summary>Знакомство с облачной инфраструктурой и облачными сервисам</summary>
+  <summary>Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible</summary>
 
-#### Создание виртуальных машин в GCP
+##### Установка Ansible
+`pip install ansible>=2.4`
 
-Использование приватного/публичного ключей SSH, проброс ключей
-ssh-keygen, ssh-agent, ssh-add
+##### файл inventory
+``` [app] appserver ansible_host=104.199.105.96 [db] dbserver ansible_host=130.211.108.138 ``` модуль ping `ansible appserver -i ./inventory -m ping`
 
-Создание vpn сервера Pritunl на bastion хосте
+##### Параметры ansible.cfg
+``` [defaults] inventory = ./inventory.json remote_user = appuser private_key_file = ~/.ssh/appuser host_key_checking = False retry_files_enabled = False ```
 
-Самостоятельное задание:
-Исследовать способ подключения к someinternalhost в одну команду:
+##### файл inventory.yml (YAML)
+``` app:
+  hosts:
+    appserver:
+      ansible_host: 104.199.105.96 db:
+  hosts:
+    dbserver:
+      ansible_host: 130.211.108.138 ``` модули command, shell, ping, systemd, service, git
 
-Решение:
-`ssh -t -A -i ~/.ssh/locladmn locladmn@104.198.142.243 ssh someinternalhost`
+##### playbook /clone.ym
+``` --- - name: Clone
+  hosts: app
+  tasks:
+    - name: Clone repo
+      git:
+        repo: https://github.com/express42/reddit.git
+        dest: /home/appuser/reddit ```
 
-Дополнительное задание:
-Предложить вариант решения для подключения из консоли при помощи команды вида ssh someinternalhost из локальной консоли
-рабочего устройства, чтобы подключение выполнялось по алиасу someinternalhost
-
-Решение:
-Добавить в `~/.ssh/config`
-
+##### Задание со ⭐
+Из terraform берем ip инстансов app и db из outputs и через переменную подставляем в шаблон ``` {
+    "apps": {
+        "hosts": [$app_ip],
+    },
+    "dbs": [$db_ip],
+}
 ```
-Host someinternalhost
-HostName 104.198.142.243
-User locladmn
-IdentityFIle ~/.ssh/locladmn
-ForwardAgent yes
-RemoteCommand ssh someinternalhost
-RequestTTY force
+##### файл inventory.json
+``` {
+  "app": {
+    "hosts": {
+      "appserver": {
+        "ansible_host": "130.211.108.138"
+      }
+    }
+  },
+  "db": {
+    "hosts": {
+      "dbserver": {
+        "ansible_host": "104.199.105.96"
+      }
+    }
+  }
+}
 ```
-
-#### Данные для проверки cloud-bastion:
-
-bastion_IP = 104.198.142.243
-someinternalhost_IP = 10.128.0.3
 </details>
 
-### №6 Основные сервисы Google Cloud Platform (GCP).
+### №9 Принципы организации инфраструктурного кода и работа над инфраструктурой в команде на примере Terraform.
 <details>
-<summary>Основные сервисы Google Cloud Platform (GCP).</summary>
-
-Цели занятия
-Способы управления ресурсами в GCP.
-
-#### данные для проверки
-
-testapp_IP = 35.222.255.111
-testapp_port = 9292
-
-#### Команда для запуска автоматического создания инстанса gcloud
-
-```gcloud compute instances create reddit-app \
---boot-disk-size=10GB \
---image-family ubuntu-1604-lts \
---image-project=ubuntu-os-cloud \
---machine-type=g1-small \
---tags puma-server \
---restart-on-failure \
---metadata startup-script='wget -qO - https://www.mongodb.org/static/pgp/server-3.2.asc | apt-key add -
-echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" > /etc/apt/sources.list.d/mongodb-org-3.2.list
-apt update
-apt install -y ruby-full ruby-bundler build-essential mongodb-org
-systemctl start mongod && systemctl enable mongod
-cd /home/locladmn
-git clone -b monolith https://github.com/express42/reddit.git
-cd reddit && bundle install
-puma -d'
-```
-
-##### или
-
-```gcloud compute instances create reddit-app \
---boot-disk-size=10GB \
---image-family ubuntu-1604-lts \
---image-project=ubuntu-os-cloud \
---machine-type=g1-small \
---tags puma-server \
---restart-on-failure \
---metadata-from-file startup-script=startupscript.sh
-```
-
-##### или
-
-```gcloud compute instances create reddit-app \
---boot-disk-size=10GB \
---image-family ubuntu-1604-lts \
---image-project=ubuntu-os-cloud \
---machine-type=g1-small \
---tags puma-server \
---restart-on-failure \
---metadata startup-script-url=gs://mbrbucket/startupscript.sh
-```
-
-#### firewall rule
-
-`gcloud compute firewall-rules create default-puma-server --allow tcp:9292 --target-tags 'puma-server' --source-ranges 0.0.0.0/0`
-</details>
-
-### №7 Модели управления инфраструктурой Packer.
-<details>
-  <summary>Модели управления инфраструктурой Packer</summary>
+  <summary>Практика IaC с использованием Terraform</summary>
 
 ##### Цели занятия
-Изучение packer. Команды, синтаксис, конфигурационные файлы.
+Изучение Terraform. Команды, синтаксис, конфигурационные файлы.
 
-Скачиваем Packer `https://www.packer.io/downloads.html`
+если ресурс уже существует, его можно импортировать в terraform
+команда `terraform import google_compute_firewall.firewall_ssh default-allow-ssh`
 
-Распаковываем в папки из переменной окружения PATH.
-
-Создаем Application Default Credentials (ADC) `gcloud auth application-default login`
-Создаем Packer template вида ubuntu16.json
-```
-{
-    "variables":
-       {
-            "machine_type": "f1-micro"
-            ...
-       },
-
-    "builders": [
-        {
-            "type": "googlecompute"
-            "project_id": "{{ user `project_id` }}",
-            "image_name": "reddit-full-{{timestamp}}",
-            "machine_type": "{{ user `machine_type` }}"
-        }
-    ],
-    "provisioners": [
-        {
-            "type": "shell",
-            "script": "script.sh",
-            "execute_command": "sudo {{.Path}}"
-        }
-        ...
-    ]
+ресурс ip-адреса
+```resource "google_compute_address" "app_ip" {
+name = "reddit-app-ip"
 }
 ```
-variables - переменные
-builders - секция отвечает за создание образа
-provisioners - секция отвечает за изменение образа (софт, настройки и конфигурация)
+Зависимости ресурсов, явные и неявные
+`depends_on`
 
-`gcloud projects list`
-Проверка конфига `packer validate ubuntu16.json`
-Сборка образа `packer build ubuntu16.json`
-
-#### Самостоятельное задание
-Используем пользовательские переменные:
-в секции
-```{
-    "variables": {
-            "machine_type": "f1-micro"
+Модули terraform (отдельная папка, файлы main, variables, outputs)
+ссылка на модуль в main.tf
+```
+module "app" {
+source = "./modules/app"
+public_key_path = "${var.public_key_path}"
+zone = "${var.zone}"
+app_disk_image = "${var.app_disk_image}"
+}
+```
+ссылка на выходную переменную модуля
+```
+output "app_external_ip" {
+value = "${module.app.app_external_ip}"
+}
+```
+параметризация модулей, input переменные
+terraform/vpc/main.tf
+`source_ranges = "${var.source_ranges}"`
+terraform/vpc/variables.tf
+```
+variable source_ranges {
+description = "Allowed IP addresses"
+default = ["0.0.0.0/0"]
+}
+```
+terraform/main.tf
+```
+module "vpc" {
+source = "modules/vpc"
+source_ranges = ["80.250.215.124/32"]
+}
+```
+##### Реестр модулей HashiCorp
+```
+module "storage-bucket" {
+  source  = "SweetOps/storage-bucket/google"
+  version = "0.3.0"
+  name        = "mbrbug-bucket-reddit-app"
+  location    = "europe-west1"
+}
+```
+##### Хранение стайт файла в бекенде
+```
+terraform {
+  backend "gcs" {
+    bucket  = "mbrbug-bucket-reddit-app"
+    prefix  = "prod"
   }
-```
-или
-в файле variables.json
-```
-{
-  "project_id": "infra-123456",
-  "source_image_family": "ubuntu-1604-lts"
 }
 ```
-файл указывается параметром `-var-file=variables.json`
-
-#### Задание со *
-##### "Запекаем" образ - добавляем в образ приложение, зависимости и конфиги
-Используем `"source_image_family": "reddit-base"`
-Для запуска puma используем systemd.unit
-```
-[Unit]
-Description=Puma Server
-After=network.target
-Requires=network.target
-
-[Service]
-ExecStart=/usr/local/bin/puma -C /var/lib/gems/2.3.0/gems/puma-3.10.0/lib/puma.rb --dir /home/appuser/reddit
-TimeoutSec=15
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-##### Создание VM из образа через скрипт, используя gcloud
-```
-#!/bin/bash
-gcloud compute instances create reddit-app \
-> --boot-disk-size=10GB \
-> --image-family reddit-full \
-> --machine-type=g1-small \
-> --tags puma-server \
-> --restart-on-failure
+##### if statement in terraform
+ задаем переменную boolean в variables.tf модуля
+ ```
+ variable app_provisioner {
+  description = "turn on off puma provisioner"
+ }
+ ```
+ задаем значение переменной в main.tf root модуля
+ ```
+ module "app" {
+   ...
+   app_provisioner = true
+ }
+ ```
+ в main.tf модуля app задаем два идентичных ресурса с разными именами и различием в проверке переменной
+ ```
+ count = var.app_provisioner ? 0 : 1
+ ```
+ или
+ ```
+count = var.app_provisioner ? 0 : 1
  ```
 </details>
 
@@ -317,151 +347,198 @@ resource "google_compute_instance" "app" {
 ```
 </details>
 
-### №9 Принципы организации инфраструктурного кода и работа над инфраструктурой в команде на примере Terraform.
+### №7 Модели управления инфраструктурой Packer.
 <details>
-  <summary>Практика IaC с использованием Terraform</summary>
+  <summary>Модели управления инфраструктурой Packer</summary>
 
 ##### Цели занятия
-Изучение Terraform. Команды, синтаксис, конфигурационные файлы.
+Изучение packer. Команды, синтаксис, конфигурационные файлы.
 
-если ресурс уже существует, его можно импортировать в terraform
-команда `terraform import google_compute_firewall.firewall_ssh default-allow-ssh`
+Скачиваем Packer `https://www.packer.io/downloads.html`
 
-ресурс ip-адреса
-```resource "google_compute_address" "app_ip" {
-name = "reddit-app-ip"
-}
-```
-Зависимости ресурсов, явные и неявные
-`depends_on`
+Распаковываем в папки из переменной окружения PATH.
 
-Модули terraform (отдельная папка, файлы main, variables, outputs)
-ссылка на модуль в main.tf
+Создаем Application Default Credentials (ADC) `gcloud auth application-default login`
+Создаем Packer template вида ubuntu16.json
 ```
-module "app" {
-source = "./modules/app"
-public_key_path = "${var.public_key_path}"
-zone = "${var.zone}"
-app_disk_image = "${var.app_disk_image}"
+{
+    "variables":
+       {
+            "machine_type": "f1-micro"
+            ...
+       },
+
+    "builders": [
+        {
+            "type": "googlecompute"
+            "project_id": "{{ user `project_id` }}",
+            "image_name": "reddit-full-{{timestamp}}",
+            "machine_type": "{{ user `machine_type` }}"
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "script": "script.sh",
+            "execute_command": "sudo {{.Path}}"
+        }
+        ...
+    ]
 }
 ```
-ссылка на выходную переменную модуля
-```
-output "app_external_ip" {
-value = "${module.app.app_external_ip}"
-}
-```
-параметризация модулей, input переменные
-terraform/vpc/main.tf
-`source_ranges = "${var.source_ranges}"`
-terraform/vpc/variables.tf
-```
-variable source_ranges {
-description = "Allowed IP addresses"
-default = ["0.0.0.0/0"]
-}
-```
-terraform/main.tf
-```
-module "vpc" {
-source = "modules/vpc"
-source_ranges = ["80.250.215.124/32"]
-}
-```
-##### Реестр модулей HashiCorp
-```
-module "storage-bucket" {
-  source  = "SweetOps/storage-bucket/google"
-  version = "0.3.0"
-  name        = "mbrbug-bucket-reddit-app"
-  location    = "europe-west1"
-}
-```
-##### Хранение стайт файла в бекенде
-```
-terraform {
-  backend "gcs" {
-    bucket  = "mbrbug-bucket-reddit-app"
-    prefix  = "prod"
+variables - переменные
+builders - секция отвечает за создание образа
+provisioners - секция отвечает за изменение образа (софт, настройки и конфигурация)
+
+`gcloud projects list`
+Проверка конфига `packer validate ubuntu16.json`
+Сборка образа `packer build ubuntu16.json`
+
+#### Самостоятельное задание
+Используем пользовательские переменные:
+в секции
+```{
+    "variables": {
+            "machine_type": "f1-micro"
   }
+```
+или
+в файле variables.json
+```
+{
+  "project_id": "infra-123456",
+  "source_image_family": "ubuntu-1604-lts"
 }
 ```
-##### if statement in terraform
- задаем переменную boolean в variables.tf модуля
- ```
- variable app_provisioner {
-  description = "turn on off puma provisioner"
- }
- ```
- задаем значение переменной в main.tf root модуля
- ```
- module "app" {
-   ...
-   app_provisioner = true
- }
- ```
- в main.tf модуля app задаем два идентичных ресурса с разными именами и различием в проверке переменной
- ```
- count = var.app_provisioner ? 0 : 1
- ```
- или
- ```
-count = var.app_provisioner ? 0 : 1
+файл указывается параметром `-var-file=variables.json`
+
+#### Задание со *
+##### "Запекаем" образ - добавляем в образ приложение, зависимости и конфиги
+Используем `"source_image_family": "reddit-base"`
+Для запуска puma используем systemd.unit
+```
+[Unit]
+Description=Puma Server
+After=network.target
+Requires=network.target
+
+[Service]
+ExecStart=/usr/local/bin/puma -C /var/lib/gems/2.3.0/gems/puma-3.10.0/lib/puma.rb --dir /home/appuser/reddit
+TimeoutSec=15
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+##### Создание VM из образа через скрипт, используя gcloud
+```
+#!/bin/bash
+gcloud compute instances create reddit-app \
+> --boot-disk-size=10GB \
+> --image-family reddit-full \
+> --machine-type=g1-small \
+> --tags puma-server \
+> --restart-on-failure
  ```
 </details>
 
-### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
+### №6 Основные сервисы Google Cloud Platform (GCP).
+<details>
+<summary>Основные сервисы Google Cloud Platform (GCP).</summary>
 
-##### Установка Ansible
-`pip install ansible>=2.4`
+Цели занятия
+Способы управления ресурсами в GCP.
 
-##### файл inventory
-``` [app] appserver ansible_host=104.199.105.96 [db] dbserver ansible_host=130.211.108.138 ``` модуль ping `ansible appserver -i ./inventory -m ping`
+#### данные для проверки
 
-##### Параметры ansible.cfg
-``` [defaults] inventory = ./inventory.json remote_user = appuser private_key_file = ~/.ssh/appuser host_key_checking = False retry_files_enabled = False ```
+testapp_IP = 35.222.255.111
+testapp_port = 9292
 
-##### файл inventory.yml (YAML)
-``` app:
-  hosts:
-    appserver:
-      ansible_host: 104.199.105.96 db:
-  hosts:
-    dbserver:
-      ansible_host: 130.211.108.138 ``` модули command, shell, ping, systemd, service, git
+#### Команда для запуска автоматического создания инстанса gcloud
 
-##### playbook /clone.ym
-``` --- - name: Clone
-  hosts: app
-  tasks:
-    - name: Clone repo
-      git:
-        repo: https://github.com/express42/reddit.git
-        dest: /home/appuser/reddit ```
-
-##### Задание со ⭐
-Из terraform берем ip инстансов app и db из outputs и через переменную подставляем в шаблон ``` {
-    "apps": {
-        "hosts": [$app_ip],
-    },
-    "dbs": [$db_ip],
-}
+```gcloud compute instances create reddit-app \
+--boot-disk-size=10GB \
+--image-family ubuntu-1604-lts \
+--image-project=ubuntu-os-cloud \
+--machine-type=g1-small \
+--tags puma-server \
+--restart-on-failure \
+--metadata startup-script='wget -qO - https://www.mongodb.org/static/pgp/server-3.2.asc | apt-key add -
+echo "deb http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.2 multiverse" > /etc/apt/sources.list.d/mongodb-org-3.2.list
+apt update
+apt install -y ruby-full ruby-bundler build-essential mongodb-org
+systemctl start mongod && systemctl enable mongod
+cd /home/locladmn
+git clone -b monolith https://github.com/express42/reddit.git
+cd reddit && bundle install
+puma -d'
 ```
-##### файл inventory.json
-``` {
-  "app": {
-    "hosts": {
-      "appserver": {
-        "ansible_host": "130.211.108.138"
-      }
-    }
-  },
-  "db": {
-    "hosts": {
-      "dbserver": {
-        "ansible_host": "104.199.105.96"
-      }
-    }
-  }
-}
+
+##### или
+
+```gcloud compute instances create reddit-app \
+--boot-disk-size=10GB \
+--image-family ubuntu-1604-lts \
+--image-project=ubuntu-os-cloud \
+--machine-type=g1-small \
+--tags puma-server \
+--restart-on-failure \
+--metadata-from-file startup-script=startupscript.sh
 ```
+
+##### или
+
+```gcloud compute instances create reddit-app \
+--boot-disk-size=10GB \
+--image-family ubuntu-1604-lts \
+--image-project=ubuntu-os-cloud \
+--machine-type=g1-small \
+--tags puma-server \
+--restart-on-failure \
+--metadata startup-script-url=gs://mbrbucket/startupscript.sh
+```
+
+#### firewall rule
+
+`gcloud compute firewall-rules create default-puma-server --allow tcp:9292 --target-tags 'puma-server' --source-ranges 0.0.0.0/0`
+</details>
+
+### №5 Знакомство с облачной инфраструктурой и облачными сервисами.
+<details>
+<summary>Знакомство с облачной инфраструктурой и облачными сервисам</summary>
+
+#### Создание виртуальных машин в GCP
+
+Использование приватного/публичного ключей SSH, проброс ключей
+ssh-keygen, ssh-agent, ssh-add
+
+Создание vpn сервера Pritunl на bastion хосте
+
+Самостоятельное задание:
+Исследовать способ подключения к someinternalhost в одну команду:
+
+Решение:
+`ssh -t -A -i ~/.ssh/locladmn locladmn@104.198.142.243 ssh someinternalhost`
+
+Дополнительное задание:
+Предложить вариант решения для подключения из консоли при помощи команды вида ssh someinternalhost из локальной консоли
+рабочего устройства, чтобы подключение выполнялось по алиасу someinternalhost
+
+Решение:
+Добавить в `~/.ssh/config`
+
+```
+Host someinternalhost
+HostName 104.198.142.243
+User locladmn
+IdentityFIle ~/.ssh/locladmn
+ForwardAgent yes
+RemoteCommand ssh someinternalhost
+RequestTTY force
+```
+
+#### Данные для проверки cloud-bastion:
+
+bastion_IP = 104.198.142.243
+someinternalhost_IP = 10.128.0.3
+</details>
