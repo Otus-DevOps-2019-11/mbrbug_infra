@@ -1,9 +1,122 @@
 # mbrbug_infra
 mbrbug Infra repository
 
-### Деплой и управлениеконфигурацией с Ansible
+### №11 Ansible: работа с ролями и окружениями
+##### Роли Ansible
+`ansible-galaxy init app`
+##### вызов роли в плейбуке
+```
+roles:
+- app
+```
+###### best-practice!!!
+`ansible-playbook -i environments/prod/inventory deploy.yml`
+```
+[defaults]
+inventory = ./environments/stage/inventory # Inventory по-умолчанию задается здесь
+```
+##### group_vars/[all,app,db]
+переменные для групп хостов
+Использование:
+Для роли app в файле ansible/roles/app/defaults/main.yml:
 
+###### defaults file for app
+db_host: 127.0.0.1
+env: local
 
+##### var example
+Для роли app (файл ansible/roles/app/tasks/main.yml):
+Добавим такой же таск в роль db (файл
+ansible/roles/db/tasks/main.yml):
+```
+# tasks file for app
+- name: Show info about the env this host belongs to
+debug:
+msg: "This host is in {{ env }} environment!!!"
+```
+
+##### Работа с Community-ролями
+работа с ними производится с помощью утилиты ansible-galaxy и файла requirements.yml
+###### requirements.yml
+```
+- src: jdauphant.nginx
+version: v2.21.1
+```
+Установка роли
+`ansible-galaxy install -r environments/stage/requirements.yml`
+Добавим эти переменные в stage/group_vars/app
+```
+nginx_sites:
+default:
+- listen 80
+- server_name "reddit"
+- location / {
+proxy_pass http://127.0.0.1:80;
+}
+```
+##### Работа с Ansible Vault
+Для шифрования используется мастер-пароль (aka vault key).
+Его нужно передавать команде ansible-playbook при запуске,
+либо указать файл с ключом в ansible.cfg.
+ansible.config
+```
+[defaults]
+...
+vault_password_file = vault.key
+```
+ansible/playbooks/users.yml
+```
+- name: Create users
+hosts: all
+become: true
+vars_files:
+- "{{ inventory_dir }}/credentials.yml"
+tasks:
+- name: create users
+user:
+name: "{{ item.key }}"
+password: "{{ item.value.password|password_hash('sha512',
+65534|random(seed=inventory_hostname)|string) }}"
+groups: "{{ item.value.groups | default(omit) }}"
+with_dict: "{{ credentials.users }}"
+```
+ansible/environments/prod/credentials.yml
+```
+credentials:
+users:
+admin:
+password: admin123
+groups: sudo
+```
+`ansible-vault encrypt environments/prod/credentials.yml`
+`ansible-vault edit <file>`
+`ansible-vault decrypt <file>`
+##### Работа с trytravis
+```
+dist: trusty
+sudo: required
+language: bash
+before_install:
+- curl https://raw.githubusercontent.com/express42/otus-homeworks/2019-11/run.sh |
+  bash
+
+install:
+- sudo pip install -r ansible/requirements.txt
+
+script:
+- packer validate -var-file=packer/variables.json.example packer/app.json
+
+branches:
+  only:
+  - master
+  - ansible-3
+
+notifications:
+  slack:
+    rooms:
+      secure: k8  .....   23bPHMhyFoJkRahm5sJQ=
+
+```
 
 ### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
 
