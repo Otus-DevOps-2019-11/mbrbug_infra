@@ -1,7 +1,7 @@
 # mbrbug_infra
 mbrbug Infra repository
 
-### №11 Ansible: работа с ролями и окружениями
+### №12 Ansible: работа с ролями и окружениями
 ##### Роли Ansible
 `ansible-galaxy init app`
 ##### вызов роли в плейбуке
@@ -115,8 +115,84 @@ notifications:
   slack:
     rooms:
       secure: k8  .....   23bPHMhyFoJkRahm5sJQ=
+```
+
+### №11 Деплой и управление конфигурацией с Ansible
+
+<details>
+  <summary>Деплой и управление конфигурацией с Ansible</summary>
+
+ansible/templates, файлы \*.j2
+variable вида  `{{ mongo_port | default('27017') }}`
+
+а в плейбуке
+```
+   vars:
+    mongo_bind_ip: 0.0.0.0
+```
+пробный запуск `ansible-playbook reddit_app.yml --check --limit app --tags app-tag`
+
+и ограничение действия к указанным группам хостов и/или тегам
+
+##### handlers
+```
+- name: Configure hosts & deploy application
+hosts: all
+vars:
+mongo_bind_ip: 0.0.0.0
+tasks:
+- name: Change mongo config file
+become: true
+template:
+src: templates/mongod.conf.j2
+dest: /etc/mongod.conf
+mode: 0644
+tags: db-tag
+notify: restart mongod
+handlers: # <-- Добавим блок handlers и задачу
+- name: restart mongod
+become: true
+service: name=mongod state=restarted
+```
+
+###### Задание со *
+К прошлому динамическому инвентори добавился внутренный адрес сервера db.
+Он записывается в качестве переменной db_int_ip
+```
+
+    "app":  {
+      "hosts": [
+          "$app_ip"
+      ],
+        "vars": {
+            "db_ip_int": "$db_ip_int"
+        }
+    },
 
 ```
+```
+---
+- name: Configure App
+  hosts: app
+  become: true
+  vars:
+   db_host: "{{ db_ip_int }}"
+```
+скрипт указан в ansible.cfg в качестве inventory файла
+```
+inventory = ./dyn_inv.sh
+```
+
+##### Провижининг ansible в Packer
+```
+"provisioners": [
+{
+"type": "ansible",
+"playbook_file": "ansible/packer_app.yml"
+}
+]
+```
+<details>
 
 ### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
 
