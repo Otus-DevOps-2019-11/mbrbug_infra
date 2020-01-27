@@ -5,3 +5,4 @@
 .terraform/
 *.bak
 *.retry
+jdauphant.nginx

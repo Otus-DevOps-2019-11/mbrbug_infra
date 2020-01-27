@@ -1,0 +1,9 @@
+---
+- name: Configure App
+  hosts: app
+  become: true
+#  vars:
+#   db_host: "{{ db_host }}"
+  roles:
+   - app
+   - jdauphant.nginx

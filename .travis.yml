@@ -1,9 +1,34 @@
 dist: trusty
+
 sudo: required
+
 language: bash
+
 before_install:
 - curl https://raw.githubusercontent.com/express42/otus-homeworks/2019-11/run.sh |
   bash
+
+install:
+- sudo pip install -r ansible/requirements.txt
+- sudo curl -L "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" -o tflint.zip && unzip tflint.zip && sudo cp tflint /usr/sbin
+- sudo pip install ansible-lint
+- wget https://releases.hashicorp.com/terraform/0.12.19/terraform_0.12.19_linux_amd64.zip -O /tmp/terraform.zip
+- sudo unzip -d /usr/local/bin/ /tmp/terraform.zip
+
+script:
+- packer validate -var-file=packer/variables.json.example packer/app.json
+- packer validate -var-file=packer/variables.json.example packer/db.json
+- tflint terraform/stage
+- tflint terraform/prod
+- cd terraform/prod && terraform init -backend=false && terraform validate && cd ..
+- cd stage && terraform init -backend=false && terraform validate && cd ..
+- ansible-lint ansible/playbooks
+
+branches:
+  only:
+  - master
+  - ansible-3
+
 notifications:
   slack:
     rooms:
