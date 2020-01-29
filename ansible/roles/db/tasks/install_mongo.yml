@@ -1,6 +1,6 @@
 - name: Add APT key
   apt_key:
-    id: "E52529D4"
+    id: E52529D4
     keyserver: keyserver.ubuntu.com
   tags: install
 

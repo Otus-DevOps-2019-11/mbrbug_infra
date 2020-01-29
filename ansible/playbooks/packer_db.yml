@@ -2,6 +2,8 @@
 - name: Install MongoDB
   hosts: all
   become: true
+  roles:
+   - db
   tasks:
     - name: Install python-apt
       shell: apt install python-apt
