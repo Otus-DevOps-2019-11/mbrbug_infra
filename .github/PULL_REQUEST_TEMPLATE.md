@@ -2,22 +2,21 @@
 
  - [x] Основное ДЗ №11
  - [x] Задание со *
+ - [x] Задание со **
 
 ## В процессе сделано:
- - Установлен Ansible
- - создан файл inventory
- - настройка Ansible файлом ansible.cfg
- - создание файла inventory.yml
- - создание плейбука clone.yml (ansible-playbook clone.yml)
- - создание inventory.json (динамический инвентори)
- - создание скрипта для динамического инвентори
+ - изучена работа с ролями
+ - проект разбит на роли app, db, nginx
+ - Работа с Ansible Vault
+ - Работа с trytravis
 
 ## Как запустить проект:
- - запустить terraform apply (stage окружение)
+ - запустить terraform apply (в нужном окружении)
  - запустить ansible-playbook clone.yml
+ `ansible-playbook -i environments/stage/dyn_inv.sh playbooks/site.yml`
 
 ## Как проверить работоспособность:
- - ansible all -m ping
+ - http://app_external_ip
 
 ## PR checklist
  - [x] Выставил label с номером домашнего задания

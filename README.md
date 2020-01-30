@@ -1,9 +1,6 @@
 # mbrbug_infra
 mbrbug Infra repository
 
-# mbrbug_infra
-mbrbug Infra repository
-
 ### №13 Разработка и тестирование Ansible ролей и плейбуков
 
 ##### Vagrantfile
@@ -76,7 +73,7 @@ def test_config_file(host):
     assert config_file.is_file
 
     def test_db_port(host):
-        host.socket("tcp://0.0.0.0:27017").is_listening
+        host.socket("tcp://0.0.0.0:27017").is_listening    
 ```
 `molecule init scenario --scenario-name default -r db -d vagrant`
 ` molecule create`
@@ -281,7 +278,9 @@ inventory = ./dyn_inv.sh
 }
 ]
 ```
+
 </details>
+
 
 ### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
 
