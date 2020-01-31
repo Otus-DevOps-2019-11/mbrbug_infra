@@ -1,1 +1,4 @@
-ansible>=2.4
+ansible
+molecule
+testinfra
+python-vagrant

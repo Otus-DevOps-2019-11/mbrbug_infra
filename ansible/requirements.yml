@@ -1,0 +1,3 @@
+- src: https://github.com/mbrbug/db-role.git
+  version: 1.3.7
+  name: db

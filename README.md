@@ -1,7 +1,92 @@
 # mbrbug_infra
 mbrbug Infra repository
 
+### №13 Разработка и тестирование Ansible ролей и плейбуков
+
+##### Vagrantfile
+```
+Vagrant.configure("2") do |config|
+
+  config.vm.provider :virtualbox do |v|
+    v.memory = 512
+  end
+
+  config.vm.define "dbserver" do |db|
+    db.vm.box = "ubuntu/xenial64"
+    db.vm.hostname = "dbserver"
+    db.vm.network :private_network, ip: "10.10.10.10"
+
+    db.vm.provision "ansible" do |ansible|
+      ansible.playbook = "playbooks/site.yml"
+      ansible.groups = {
+      "db" => ["dbserver"],
+      "db:vars" => {"mongo_bind_ip" => "0.0.0.0"}
+      }
+    end
+  end
+
+  config.vm.define "appserver" do |app|
+    app.vm.box = "ubuntu/xenial64"
+    app.vm.hostname = "appserver"
+    app.vm.network :private_network, ip: "10.10.10.20"
+
+    app.vm.provision "ansible" do |ansible|
+      ansible.playbook = "playbooks/site.yml"
+      ansible.groups = {
+      "app" => ["appserver"],
+      "app:vars" => { "db_host" => "10.10.10.10"}
+      }
+      ansible.extra_vars = {
+        "deploy_user" => "ubuntu"
+      }
+    end
+  end
+end
+```
+`vagrant up`
+`vagrant box list `
+`vagrant status`
+`vagrant ssh appserver`
+`vagrant provision dbserver`
+`vagrant destroy -f`
+
+##### testinfra
+db/molecule/default/tests/test_default.py
+```
+import os
+
+import testinfra.utils.ansible_runner
+
+testinfra_hosts = testinfra.utils.ansible_runner.AnsibleRunner(
+    os.environ['MOLECULE_INVENTORY_FILE']).get_hosts('all')
+
+# check if MongoDB is enabled and running
+def test_mongo_running_and_enabled(host):
+    mongo = host.service("mongod")
+    assert mongo.is_running
+    assert mongo.is_enabled
+
+# check if configuration file contains the required line
+def test_config_file(host):
+    config_file = host.file('/etc/mongod.conf')
+    assert config_file.contains('bindIp: 0.0.0.0')
+    assert config_file.is_file
+
+    def test_db_port(host):
+        host.socket("tcp://0.0.0.0:27017").is_listening    
+```
+`molecule init scenario --scenario-name default -r db -d vagrant`
+` molecule create`
+`molecule list `
+`molecule converge`
+`molecule verify`
+``
+
 ### №12 Ansible: работа с ролями и окружениями
+
+<details>
+  <summary>Ansible: работа с ролями и окружениями</summary>
+
 ##### Роли Ansible
 `ansible-galaxy init app`
 ##### вызов роли в плейбуке
@@ -116,6 +201,7 @@ notifications:
     rooms:
       secure: k8  .....   23bPHMhyFoJkRahm5sJQ=
 ```
+</details>
 
 ### №11 Деплой и управление конфигурацией с Ansible
 
@@ -192,7 +278,9 @@ inventory = ./dyn_inv.sh
 }
 ]
 ```
-<details>
+
+</details>
+
 
 ### №10 Управление конфигурацией. Основные DevOps инструменты. Знакомство с Ansible
 

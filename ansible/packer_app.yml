@@ -2,11 +2,5 @@
 - name: pre-install app
   hosts: all
   become: true
-  tasks:
-
-  - name: install packages
-    apt:
-     pkg:
-      - ruby-full
-      - ruby-bundler
-      - build-essential
+  roles:
+   - app
